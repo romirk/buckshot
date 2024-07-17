@@ -44,15 +44,15 @@ fn main() {
             typewrite("\x1b[32mMISS\x1b[0m ".to_string());
         }
         if !careful && round.lives()[0] == 1 {
-            println!("\x1b[90mCareful now...\x1b[0m");
+            println!("\n\x1b[90mCareful now...\x1b[0m");
             careful = true;
         }
     }
     let lives = round.lives();
     if lives[0] == 0 {
-        typewrite("\x1b[31mDEALER WINS\x1b[0m ".to_string());
+        typewrite("\n\x1b[31mDEALER WINS\x1b[0m ".to_string());
     } else if lives[1] == 0 {
-        typewrite("\x1b[32mYOU WIN\x1b[0m ".to_string());
+        typewrite("\n\x1b[32mYOU WIN\x1b[0m ".to_string());
     }
     println!("\n\x1b[36m{magazine}\x1b[0m");
 }

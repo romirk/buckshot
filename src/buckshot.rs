@@ -107,9 +107,9 @@ impl fmt::Display for Round {
 pub fn create_round() -> Round {
     let mut rng = thread_rng();
     let bullets: u8 = rng.gen_range(2..=8);
-    let lives = rng.gen_range(2..=6);
-    let live = rng.gen_range(1..=((bullets + 1) / 2));
-    let pos = rand::seq::index::sample(&mut rng, bullets as usize, live as usize).into_vec();
+    let live_rounds = rng.gen_range(1..=((bullets + 1) / 2));
+    let lives = rng.gen_range(1..=live_rounds);
+    let pos = rand::seq::index::sample(&mut rng, bullets as usize, live_rounds as usize).into_vec();
     let mut magazine: u8 = 0;
 
     for p in pos {
