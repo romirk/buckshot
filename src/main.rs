@@ -19,7 +19,7 @@ fn main() {
     sleep(Duration::from_millis(500));
     typewrite(format!(" \x1b[33m{}\x1b[0m blank{}.", blanks, if blanks == 1 { "" } else { "s" }));
     sleep(Duration::from_millis(500));
-    typewrite("\nI insert the shells in an unknown order.\n".to_string());
+    typewrite("\nI insert the shells in an unknown order.\n\n".to_string());
     sleep(Duration::from_millis(700));
     let mut lines = io::stdin().lock().lines();
 
@@ -49,11 +49,12 @@ fn main() {
             careful = true;
         }
     }
+    println!();
     let lives = round.lives();
     if lives[0] == 0 {
-        typewrite("\n\x1b[31mDEALER WINS\x1b[0m ".to_string());
+        typewrite("\n\x1b[31mI WIN\x1b[0m ".to_string());
     } else if lives[1] == 0 {
         typewrite("\n\x1b[32mYOU WIN\x1b[0m ".to_string());
     }
-    println!("\n\x1b[36m{magazine}\x1b[0m");
+    println!("\n\x1b[36m{magazine}\x1b[0m {round}");
 }
