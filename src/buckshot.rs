@@ -44,6 +44,22 @@ impl Round {
         self.bullets == 0 || self.player_lives == 0 || self.dealer_lives == 0
     }
 
+    pub fn live(&self) -> u8 {
+        self.magazine.count_ones() as u8
+    }
+
+    pub fn players_turn(&self) -> bool {
+        self.players_turn
+    }
+
+    pub fn lives(&self) -> [u8; 2] {
+        [self.player_lives, self.dealer_lives]
+    }
+
+    pub fn bullets(&self) -> u8 {
+        self.bullets
+    }
+
     pub fn shoot(&mut self, suicide: bool) -> Result<(), &'static str> {
         if self.bullets == 0 {
             return Err("No bullets.");
@@ -76,7 +92,14 @@ impl Round {
 
 impl fmt::Display for Round {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{:08b} {}{:?} ⚡ {:?}{}", self.magazine, if self.players_turn { "*" } else { " " }, self.player_lives, self.dealer_lives, if !self.players_turn { "*" } else { " " })
+        write!(
+            f,
+            "{:08b} {}{} ⚡ {}{}",
+            self.magazine,
+            if self.players_turn { "*" } else { " " },
+            self.player_lives,
+            self.dealer_lives,
+            if !self.players_turn { "*" } else { " " })
     }
 }
 
