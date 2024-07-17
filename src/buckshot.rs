@@ -3,9 +3,6 @@ use std::fmt::Formatter;
 
 use rand::{Rng, thread_rng};
 
-use crate::error::BuckshotError;
-use crate::error::BuckshotError::ValueError;
-
 // #[derive(Eq, PartialEq)]
 // enum Item {
 //     Adrenaline,
@@ -60,7 +57,7 @@ impl Round {
         self.bullets
     }
 
-    pub fn shoot(&mut self, suicide: bool) -> Result<(), &'static str> {
+    pub fn shoot(&mut self, suicide: bool) -> Result<bool, &'static str> {
         if self.bullets == 0 {
             return Err("No bullets.");
         }
@@ -76,7 +73,7 @@ impl Round {
 
         if !live {
             if suicide {
-                return Ok(());
+                return Ok(false);
             }
         } else {
             if (suicide && !self.players_turn) || (!suicide && self.players_turn) {
@@ -86,16 +83,20 @@ impl Round {
             }
         }
         self.players_turn = !self.players_turn;
-        Ok(())
+        Ok(live)
+    }
+
+    pub fn debug_magazine(&self) -> String {
+        format!("{:08b}", self.magazine)
     }
 }
 
 impl fmt::Display for Round {
+    //noinspection RsConstantConditionIf
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{:08b} {}{} ⚡ {}{}",
-            self.magazine,
+            "{}{} ⚡ {}{}",
             if self.players_turn { "*" } else { " " },
             self.player_lives,
             self.dealer_lives,
@@ -103,13 +104,10 @@ impl fmt::Display for Round {
     }
 }
 
-pub fn create_round(lives: u8) -> Result<Round, BuckshotError> {
-    if lives < 2 || lives > 6 {
-        return Err(ValueError);
-    }
-
+pub fn create_round() -> Round {
     let mut rng = thread_rng();
     let bullets: u8 = rng.gen_range(2..=8);
+    let lives = rng.gen_range(2..=6);
     let live = rng.gen_range(1..=((bullets + 1) / 2));
     let pos = rand::seq::index::sample(&mut rng, bullets as usize, live as usize).into_vec();
     let mut magazine: u8 = 0;
@@ -118,11 +116,11 @@ pub fn create_round(lives: u8) -> Result<Round, BuckshotError> {
         magazine |= 1 << p;
     }
 
-    Ok(Round {
+    Round {
         bullets,
         players_turn: true,
         magazine,
         dealer_lives: lives,
         player_lives: lives,
-    })
+    }
 }

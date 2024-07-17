@@ -1,24 +1,33 @@
-use std::{env, io};
+use std::io;
 use std::io::{BufRead, Write};
+use std::thread::sleep;
+use std::time::Duration;
+
+use crate::typewriter::typewrite;
 
 mod buckshot;
 mod error;
+mod typewriter;
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let mut round = buckshot::create_round(args[1].parse().unwrap()).expect("Failed to create round");
+    let mut round = buckshot::create_round();
 
     let live = round.live();
     let blanks = round.bullets() - live;
-    println!("\n\x1b[31m{}\x1b[0m live. \x1b[33m{}\x1b[0m blank{}. I insert the shells in an unknown order.", live, blanks, if blanks == 1 { "" } else { "s" });
-
+    let magazine = round.debug_magazine();
+    typewrite(format!("\n\x1b[31m{}\x1b[0m live.", live));
+    sleep(Duration::from_millis(500));
+    typewrite(format!(" \x1b[33m{}\x1b[0m blank{}.", blanks, if blanks == 1 { "" } else { "s" }));
+    sleep(Duration::from_millis(500));
+    typewrite("\nI insert the shells in an unknown order.\n".to_string());
+    sleep(Duration::from_millis(700));
     let mut lines = io::stdin().lock().lines();
 
     let mut careful = false;
     while !round.done() {
         println!("{round}");
-        if round.players_turn() {
-            print!("[d/y] ");
+        let hit = if round.players_turn() {
+            print!("\x1b[90m[d/y]\x1b[0m ");
             io::stdout().flush().unwrap();
             let line = lines.next().expect("couldn't read stdin").unwrap();
             match line.trim() {
@@ -27,12 +36,23 @@ fn main() {
                 _ => continue
             }
         } else {
-            round.shoot(false).unwrap();
+            round.shoot(false).unwrap()
+        };
+        if hit {
+            typewrite("\x1b[31mHIT\x1b[0m ".to_string());
+        } else {
+            typewrite("\x1b[32mMISS\x1b[0m ".to_string());
         }
         if !careful && round.lives()[0] == 1 {
             println!("\x1b[90mCareful now...\x1b[0m");
             careful = true;
         }
     }
-    println!("\x1b[36m{round}\x1b[0m");
+    let lives = round.lives();
+    if lives[0] == 0 {
+        typewrite("\x1b[31mDEALER WINS\x1b[0m ".to_string());
+    } else if lives[1] == 0 {
+        typewrite("\x1b[32mYOU WIN\x1b[0m ".to_string());
+    }
+    println!("\n\x1b[36m{magazine}\x1b[0m");
 }
