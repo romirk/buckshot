@@ -1,22 +1,23 @@
-use std::cmp::PartialEq;
+use std::fmt;
+use std::fmt::Formatter;
 
 use rand::{Rng, thread_rng};
 
 use crate::error::BuckshotError;
 use crate::error::BuckshotError::ValueError;
 
-#[derive(Eq, PartialEq)]
-enum Item {
-    Adrenaline,
-    Beer,
-    BurnerPhone,
-    Cigarettes,
-    ExpiredMedicine,
-    HandSaw,
-    Handcuffs,
-    Inverter,
-    MagnifyingGlass,
-}
+// #[derive(Eq, PartialEq)]
+// enum Item {
+//     Adrenaline,
+//     Beer,
+//     BurnerPhone,
+//     Cigarettes,
+//     ExpiredMedicine,
+//     HandSaw,
+//     Handcuffs,
+//     Inverter,
+//     MagnifyingGlass,
+// }
 
 
 // #[derive(Debug)]
@@ -44,7 +45,7 @@ impl Round {
     }
 
     pub fn shoot(&mut self, suicide: bool) -> Result<(), &'static str> {
-        if (self.bullets == 0) {
+        if self.bullets == 0 {
             return Err("No bullets.");
         }
 
@@ -73,8 +74,14 @@ impl Round {
     }
 }
 
+impl fmt::Display for Round {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{:08b} {}{:?} ⚡ {:?}{}", self.magazine, if self.players_turn { "*" } else { " " }, self.player_lives, self.dealer_lives, if !self.players_turn { "*" } else { " " })
+    }
+}
+
 pub fn create_round(lives: u8) -> Result<Round, BuckshotError> {
-    if (lives < 2 || lives > 6) {
+    if lives < 2 || lives > 6 {
         return Err(ValueError);
     }
 
