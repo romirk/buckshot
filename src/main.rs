@@ -23,7 +23,8 @@ fn main() {
     sleep(Duration::from_millis(700));
     let mut lines = io::stdin().lock().lines();
 
-    let mut careful = false;
+    let mut careful = round.lives()[0] == 1;
+
     while !round.done() {
         println!("{round}");
         let hit = if round.players_turn() {
@@ -39,7 +40,7 @@ fn main() {
             round.shoot(false).unwrap()
         };
         if hit {
-            typewrite("\x1b[31mHIT\x1b[0m ".to_string());
+            typewrite("\x1b[31mHIT \x1b[0m ".to_string());
         } else {
             typewrite("\x1b[32mMISS\x1b[0m ".to_string());
         }
