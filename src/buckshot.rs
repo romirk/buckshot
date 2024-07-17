@@ -1,5 +1,10 @@
 use std::cmp::PartialEq;
 
+use rand::{Rng, thread_rng};
+
+use crate::error::BuckshotError;
+use crate::error::BuckshotError::ValueError;
+
 #[derive(Eq, PartialEq)]
 enum Item {
     Adrenaline,
@@ -23,18 +28,22 @@ enum Item {
 
 #[derive(Debug)]
 pub struct Round {
-    pub bullets: u8,
-    pub players_turn: bool,
+    bullets: u8,
+    players_turn: bool,
 
     // 1 bit per bullet, 1 = live
-    pub magazine: u8,
+    magazine: u8,
 
-    pub dealer_lives: u8,
-    pub player_lives: u8
+    dealer_lives: u8,
+    player_lives: u8,
 }
 
 impl Round {
-    pub fn shoot(&mut self, suicide: bool) -> Result<(), &str> {
+    pub fn done(&self) -> bool {
+        self.bullets == 0 || self.player_lives == 0 || self.dealer_lives == 0
+    }
+
+    pub fn shoot(&mut self, suicide: bool) -> Result<(), &'static str> {
         if (self.bullets == 0) {
             return Err("No bullets.");
         }
@@ -64,12 +73,26 @@ impl Round {
     }
 }
 
-pub fn create_round() -> Round {
-    Round {
-        bullets: 6,
-        players_turn: true,
-        magazine: 0b010110,
-        dealer_lives: 3,
-        player_lives: 3
+pub fn create_round(lives: u8) -> Result<Round, BuckshotError> {
+    if (lives < 2 || lives > 6) {
+        return Err(ValueError);
     }
+
+    let mut rng = thread_rng();
+    let bullets: u8 = rng.gen_range(2..=8);
+    let live = rng.gen_range(1..=((bullets + 1) / 2));
+    let pos = rand::seq::index::sample(&mut rng, bullets as usize, live as usize).into_vec();
+    let mut magazine: u8 = 0;
+
+    for p in pos {
+        magazine |= 1 << p;
+    }
+
+    Ok(Round {
+        bullets,
+        players_turn: true,
+        magazine,
+        dealer_lives: lives,
+        player_lives: lives,
+    })
 }

@@ -1,8 +1,13 @@
+use std::env;
+
 mod buckshot;
+mod error;
 
 fn main() {
-    let mut round = buckshot::create_round();
-    while round.bullets > 0 {
+    let args: Vec<String> = env::args().collect();
+    dbg!(args);
+    let mut round = buckshot::create_round(3).expect("Failed to create round");
+    while !round.done() {
         println!("{:?}", round);
         round.shoot(true).unwrap();
     }
