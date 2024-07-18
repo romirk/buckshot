@@ -7,7 +7,7 @@ use std::time::Duration;
 use rand::{Rng, thread_rng};
 
 use crate::dealer::{decide, think};
-use crate::types::{Item, VolleyExport, VolleyResult};
+use crate::types::{Item, Items, VolleyExport, VolleyResult};
 use crate::types::Item::Nothing;
 use crate::types::Round::{Blank, Live, Unknown};
 use crate::types::VolleyResult::{Continue, DealerWins, PlayerWins};
@@ -22,16 +22,21 @@ use crate::typewriter::{peek, typewrite};
 
 
 pub struct Volley {
-    bullets: u8,
     players_turn: bool,
 
+    bullets: u8,
+    loaded: u8,
     // 1 bit per bullet, 1 = live
     magazine: u8,
+    history: u8,
     shot: u8,
 
-    dealer_lives: u8,
-    player_lives: u8,
     max_lives: u8,
+    dealer_lives: u8,
+
+    player_lives: u8,
+    dealer_items: Items,
+    player_items: Items,
 }
 
 
@@ -72,8 +77,9 @@ impl Volley {
     }
 
     fn rack(&mut self) -> bool {
-        self.shot <<= 1;
-        self.shot &= self.magazine & 1;
+        self.history <<= 1;
+        self.history &= self.magazine & 1;
+        self.shot += 1;
         let live = (self.magazine & 1) != 0;
         self.magazine >>= 1;
         self.bullets -= 1;
@@ -99,43 +105,85 @@ impl Volley {
     pub fn export(&self) -> VolleyExport {
         VolleyExport {
             bullets: self.bullets,
+            live: self.live(),
+            loaded: self.loaded,
+            max_lives: self.max_lives,
             players_turn: self.players_turn,
             player_lives: self.player_lives,
             dealer_lives: self.dealer_lives,
+            player_items: self.player_items,
+            dealer_items: self.dealer_items,
             current_bullet: Unknown,
+            history: self.history,
             shot: self.shot,
         }
     }
 
-    fn use_item(&mut self, item: Item) -> VolleyExport {
+    fn use_player_item(&mut self, item: Item) -> bool {
         match item {
             Nothing => {
-                self.export()
+                true
             }
             Item::Beer => {
+                if self.player_items.beer > 0 {
+                    self.player_items.beer -= 1;
+                    self.rack();
+                    return true;
+                }
+                false
+            }
+            Item::Cigarettes => {
+                if self.player_items.cigarettes == 0 {
+                    return false;
+                }
+                self.player_items.cigarettes -= 1;
+                if self.player_lives < self.max_lives {
+                    self.player_lives += 1;
+                }
+                true
+            }
+            Item::MagnifyingGlass => {
+                if self.player_items.magnifying_glass == 0 {
+                    return false;
+                }
+                self.player_items.magnifying_glass -= 1;
+                let live = self.peek();
+                let bullet = if live { Live } else { Blank };
+                peek(bullet);
+                true
+            }
+        }
+    }
+
+    fn use_dealer_item(&mut self, item: Item) -> VolleyExport {
+        match item {
+            Nothing => { self.export() }
+            Item::Beer => {
+                if self.dealer_items.beer == 0 {
+                    panic!("Dealer used {item} without owning it!");
+                }
+                self.dealer_items.beer -= 1;
                 self.rack();
                 self.export()
             }
             Item::Cigarettes => {
-                if self.players_turn {
-                    if self.player_lives < self.max_lives {
-                        self.player_lives += 1;
-                    }
-                } else {
-                    if self.dealer_lives < self.max_lives {
-                        self.dealer_lives += 1;
-                    }
+                if self.dealer_items.cigarettes == 0 {
+                    panic!("Dealer used {item} without owning it!");
+                }
+                self.dealer_items.cigarettes -= 1;
+                if self.dealer_lives < self.max_lives {
+                    self.dealer_lives += 1;
                 }
                 self.export()
             }
             Item::MagnifyingGlass => {
+                if self.dealer_items.magnifying_glass == 0 {
+                    panic!("Dealer used {item} without owning it!");
+                }
+                self.dealer_items.magnifying_glass -= 1;
                 let live = self.peek();
                 let bullet = if live { Live } else { Blank };
-                if self.players_turn {
-                    peek(bullet);
-                } else {
-                    peek(Unknown);
-                }
+                peek(Unknown);
                 let mut export = self.export();
                 export.current_bullet = bullet;
                 export
@@ -198,7 +246,7 @@ impl Volley {
                 let mut export = self.export();
                 let mut item = think(export);
                 while item != Nothing {
-                    export = self.use_item(item);
+                    export = self.use_dealer_item(item);
                     item = think(export);
                 }
                 self.shoot(decide(export)).unwrap()
@@ -285,12 +333,24 @@ pub fn create_first_round(mut lives: u8, bullets: u8) -> Volley {
     let (bullets, magazine) = create_magazine(bullets);
 
     Volley {
-        bullets,
         players_turn: true,
+        bullets,
+        loaded: magazine.count_ones() as u8,
         magazine,
+        history: 0,
         shot: 0,
         dealer_lives: lives,
         player_lives: lives,
+        player_items: Items {
+            beer: 0,
+            cigarettes: 0,
+            magnifying_glass: 0,
+        },
+        dealer_items: Items {
+            beer: 0,
+            cigarettes: 0,
+            magnifying_glass: 3,
+        },
         max_lives: lives,
     }
 }
