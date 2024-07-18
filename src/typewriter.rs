@@ -3,6 +3,10 @@ use std::io::Write;
 use std::thread::sleep;
 use std::time::Duration;
 
+use Round::{Blank, Live, Unknown};
+
+use crate::types::Round;
+
 const FULL_BLOCK: char = '█';
 const RECTS: &str = " ▏▎▍▌▋▊▉█";
 
@@ -33,9 +37,13 @@ fn len_to_bar(len: u8, cap: u8) -> String {
     s
 }
 
-pub fn peek(live: bool) {
+pub fn peek(round: Round) {
     let mut i = 0;
-    let col = if live { "\x1b[31;100m" } else { "\x1b[34;100m" };
+    let col = match round {
+        Live => "\x1b[31;100m",
+        Blank => "\x1b[34;100m",
+        Unknown => "\x1b[33;100m"
+    };
     print!("{col}");
     while i < 97 {
         let s = len_to_bar(i, 96);
@@ -45,12 +53,17 @@ pub fn peek(live: bool) {
         i += 1;
     }
     i -= 1;
+    if round == Unknown {
+        sleep(Duration::from_millis(300));
+        typewrite(format!("\x1b[0m Interesting...{col}"));
+    }
     sleep(Duration::from_millis(300));
-    typewrite(format!("\x1b[0m Interesting...{col}"));
-    sleep(Duration::from_millis(1000));
     while i > 0 {
         let s = len_to_bar(i, 96);
-        print!("\r{s}\x1b[0m Interesting...{col}");
+        print!("\r{s}");
+        if round == Unknown {
+            print!("\x1b[0m Interesting...{col}");
+        }
         io::stdout().flush().unwrap();
         sleep(Duration::from_millis(3));
         i -= 1;

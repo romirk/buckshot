@@ -6,22 +6,12 @@ use std::time::Duration;
 
 use rand::{Rng, thread_rng};
 
-use crate::buckshot::RoundResult::{Continue, DealerWins, PlayerWins};
+use crate::dealer::{decide, think};
+use crate::types::{Item, VolleyExport, VolleyResult};
+use crate::types::Item::Nothing;
+use crate::types::Round::{Blank, Live, Unknown};
+use crate::types::VolleyResult::{Continue, DealerWins, PlayerWins};
 use crate::typewriter::{peek, typewrite};
-
-// #[derive(Eq, PartialEq)]
-// enum Item {
-//     Adrenaline,
-//     Beer,
-//     BurnerPhone,
-//     Cigarettes,
-//     ExpiredMedicine,
-//     HandSaw,
-//     Handcuffs,
-//     Inverter,
-//     MagnifyingGlass,
-// }
-
 
 // #[derive(Debug)]
 // struct Player {
@@ -31,20 +21,21 @@ use crate::typewriter::{peek, typewrite};
 // }
 
 
-#[derive(Debug)]
-pub struct Round {
+pub struct Volley {
     bullets: u8,
     players_turn: bool,
 
     // 1 bit per bullet, 1 = live
     magazine: u8,
+    shot: u8,
 
     dealer_lives: u8,
     player_lives: u8,
+    max_lives: u8,
 }
 
 
-impl Round {
+impl Volley {
     fn done(&self) -> bool {
         self.bullets == 0 || self.player_lives == 0 || self.dealer_lives == 0
     }
@@ -63,9 +54,7 @@ impl Round {
         }
 
 
-        let live = (self.magazine & 1) != 0;
-        self.magazine >>= 1;
-        self.bullets -= 1;
+        let live = self.rack();
 
         if !live {
             if suicide {
@@ -82,6 +71,14 @@ impl Round {
         Ok(live)
     }
 
+    fn rack(&mut self) -> bool {
+        self.shot <<= 1;
+        self.shot &= self.magazine & 1;
+        let live = (self.magazine & 1) != 0;
+        self.magazine >>= 1;
+        self.bullets -= 1;
+        live
+    }
 
     fn shuffled_magazine(&self) -> u8 {
         let mut rng = thread_rng();
@@ -95,11 +92,58 @@ impl Round {
         magazine
     }
 
-    fn next(&self) -> bool {
+    fn peek(&self) -> bool {
         self.magazine & 1 == 1
     }
 
-    pub fn play(&mut self, stage: u8, round: u8) -> RoundResult {
+    pub fn export(&self) -> VolleyExport {
+        VolleyExport {
+            bullets: self.bullets,
+            players_turn: self.players_turn,
+            player_lives: self.player_lives,
+            dealer_lives: self.dealer_lives,
+            current_bullet: Unknown,
+            shot: self.shot,
+        }
+    }
+
+    fn use_item(&mut self, item: Item) -> VolleyExport {
+        match item {
+            Nothing => {
+                self.export()
+            }
+            Item::Beer => {
+                self.rack();
+                self.export()
+            }
+            Item::Cigarettes => {
+                if self.players_turn {
+                    if self.player_lives < self.max_lives {
+                        self.player_lives += 1;
+                    }
+                } else {
+                    if self.dealer_lives < self.max_lives {
+                        self.dealer_lives += 1;
+                    }
+                }
+                self.export()
+            }
+            Item::MagnifyingGlass => {
+                let live = self.peek();
+                let bullet = if live { Live } else { Blank };
+                if self.players_turn {
+                    peek(bullet);
+                } else {
+                    peek(Unknown);
+                }
+                let mut export = self.export();
+                export.current_bullet = bullet;
+                export
+            }
+        }
+    }
+
+    pub fn play(&mut self, stage: u8, round: u8) -> VolleyResult {
         let live = self.live();
         let blanks = self.bullets - live;
         // let magazine = print_magazine(self.bullets, self.magazine);
@@ -150,9 +194,14 @@ impl Round {
                 print!("\x1b[F\x1b[2K\r");
                 r
             } else {
-                let next = self.next();
-                peek(next);
-                self.shoot(!next).unwrap()
+                // TODO dealer AI goes here
+                let mut export = self.export();
+                let mut item = think(export);
+                while item != Nothing {
+                    export = self.use_item(item);
+                    item = think(export);
+                }
+                self.shoot(decide(export)).unwrap()
             };
 
             if !careful && self.player_lives == 1 {
@@ -190,7 +239,7 @@ impl Round {
     }
 }
 
-impl fmt::Display for Round {
+impl fmt::Display for Volley {
     //noinspection RsConstantConditionIf
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
@@ -228,27 +277,25 @@ fn create_magazine(mut bullets: u8) -> (u8, u8) {
     (bullets, magazine)
 }
 
-pub fn create_first_round(mut lives: u8, bullets: u8) -> Round {
+pub fn create_first_round(mut lives: u8, bullets: u8) -> Volley {
     if lives == 0 {
         let mut rng = thread_rng();
         lives = rng.gen_range(2..=6);
     }
-    create_round(lives, lives, bullets)
-}
-
-fn create_round(player_lives: u8, dealer_lives: u8, bullets: u8) -> Round {
     let (bullets, magazine) = create_magazine(bullets);
 
-    Round {
+    Volley {
         bullets,
         players_turn: true,
         magazine,
-        dealer_lives,
-        player_lives,
+        shot: 0,
+        dealer_lives: lives,
+        player_lives: lives,
+        max_lives: lives,
     }
 }
 
-fn run_stage(stage: u8) -> RoundResult {
+fn run_stage(stage: u8) -> VolleyResult {
     let mut round = if stage == 0 { create_first_round(2, 3) } else { create_first_round(0, 0) };
     let mut result = round.play(stage, 0);
     let mut i = 0;
@@ -269,9 +316,3 @@ pub fn play() {
     }
 }
 
-#[derive(PartialEq, Eq)]
-pub enum RoundResult {
-    DealerWins,
-    PlayerWins,
-    Continue,
-}
