@@ -1,7 +1,13 @@
-use std::fmt;
+use std::{fmt, io};
 use std::fmt::Formatter;
+use std::io::{BufRead, Write};
+use std::thread::sleep;
+use std::time::Duration;
 
 use rand::{Rng, thread_rng};
+
+use crate::buckshot::RoundResult::{Continue, DealerWins, PlayerWins};
+use crate::typewriter::typewrite;
 
 // #[derive(Eq, PartialEq)]
 // enum Item {
@@ -36,28 +42,17 @@ pub struct Round {
     player_lives: u8,
 }
 
+
 impl Round {
-    pub fn done(&self) -> bool {
+    fn done(&self) -> bool {
         self.bullets == 0 || self.player_lives == 0 || self.dealer_lives == 0
     }
 
-    pub fn live(&self) -> u8 {
+    fn live(&self) -> u8 {
         self.magazine.count_ones() as u8
     }
 
-    pub fn players_turn(&self) -> bool {
-        self.players_turn
-    }
-
-    pub fn lives(&self) -> [u8; 2] {
-        [self.player_lives, self.dealer_lives]
-    }
-
-    pub fn bullets(&self) -> u8 {
-        self.bullets
-    }
-
-    pub fn shoot(&mut self, suicide: bool) -> Result<bool, &'static str> {
+    fn shoot(&mut self, suicide: bool) -> Result<bool, &'static str> {
         if self.bullets == 0 {
             return Err("No bullets.");
         }
@@ -86,8 +81,93 @@ impl Round {
         Ok(live)
     }
 
-    pub fn debug_magazine(&self) -> String {
-        format!("{:08b}", self.magazine)
+
+    fn shuffled_magazine(&self) -> u8 {
+        let mut rng = thread_rng();
+        let pos = rand::seq::index::sample(&mut rng, self.bullets as usize, self.live() as usize).into_vec();
+        let mut magazine: u8 = 0;
+
+        for p in pos {
+            magazine |= 1 << p;
+        }
+
+        magazine
+    }
+
+    pub fn play(&mut self, stage: u8, round: u8) -> RoundResult {
+        let live = self.live();
+        let blanks = self.bullets - live;
+        let magazine = print_magazine(self.bullets, self.magazine);
+
+        println!();
+        match stage {
+            0 => {
+                typewrite(print_magazine(self.bullets, self.shuffled_magazine()));
+                typewrite(format!("\n\x1b[31m{}\x1b[0m live rounds.", live));
+                sleep(Duration::from_millis(500));
+                typewrite(format!(" \x1b[33m{}\x1b[0m blank{}.", blanks, if blanks == 1 { "" } else { "s" }));
+                sleep(Duration::from_millis(500));
+                typewrite("\nI insert the shells in an unknown order.\n\n".to_string());
+                sleep(Duration::from_millis(700));
+            }
+            1 => {
+                typewrite(print_magazine(self.bullets, self.shuffled_magazine()));
+                typewrite(format!("\n\x1b[31m{}\x1b[0m live.", live));
+                sleep(Duration::from_millis(500));
+                typewrite(format!(" \x1b[33m{}\x1b[0m blank{}.\n\n", blanks, if blanks == 1 { "" } else { "s" }));
+                sleep(Duration::from_millis(500));
+            }
+            _ => {
+                typewrite(print_magazine(self.bullets, self.shuffled_magazine()));
+                if round == 0 { typewrite("\nYou know the drill.\n".to_string()); }
+                println!();
+            }
+        }
+
+        let mut lines = io::stdin().lock().lines();
+
+        let mut careful = self.player_lives == 1;
+        while !self.done() {
+            println!("{self}");
+            let hit = if self.players_turn {
+                print!("\x1b[90m[d/y]\x1b[0m ");
+                io::stdout().flush().unwrap();
+                let line = lines.next().expect("couldn't read stdin").unwrap();
+                match line.trim() {
+                    "d" => self.shoot(false).unwrap(),
+                    "y" => self.shoot(true).unwrap(),
+                    _ => continue
+                }
+            } else {
+                self.shoot(false).unwrap()
+            };
+            if hit {
+                typewrite("\x1b[31mHIT \x1b[0m ".to_string());
+            } else {
+                typewrite("\x1b[32mMISS\x1b[0m ".to_string());
+            }
+            if !careful && self.player_lives == 1 {
+                println!("\n\x1b[90mCareful now...\x1b[0m");
+                careful = true;
+            }
+        }
+        println!();
+        let result = if self.player_lives == 0 {
+            typewrite("\n\x1b[31mI WIN\x1b[0m ".to_string());
+            DealerWins
+        } else if self.dealer_lives == 0 {
+            typewrite("\n\x1b[32mYOU WIN\x1b[0m ".to_string());
+            PlayerWins
+        } else {
+            Continue
+        };
+        println!("\n{magazine} {self}\n\n");
+        result
+    }
+
+    pub fn reload(&mut self) {
+        (self.bullets, self.magazine) = create_magazine(0);
+        self.players_turn = true;
     }
 }
 
@@ -104,11 +184,21 @@ impl fmt::Display for Round {
     }
 }
 
-pub fn create_round() -> Round {
+fn print_magazine(bullets: u8, magazine: u8) -> String {
+    let mut result = String::with_capacity((bullets * 7 + 4) as usize);
+    for i in 0..bullets {
+        result.push_str(if (magazine >> i) & 1 == 1 { "\x1b[31m█ " } else { "\x1b[34m█ " });
+    }
+    result.push_str("\x1b[0m");
+    result
+}
+
+fn create_magazine(mut bullets: u8) -> (u8, u8) {
     let mut rng = thread_rng();
-    let bullets: u8 = rng.gen_range(2..=8);
+    if bullets == 0 {
+        bullets = rng.gen_range(2..=8);
+    }
     let live_rounds = rng.gen_range(1..=((bullets + 1) / 2));
-    let lives = rng.gen_range(1..=live_rounds);
     let pos = rand::seq::index::sample(&mut rng, bullets as usize, live_rounds as usize).into_vec();
     let mut magazine: u8 = 0;
 
@@ -116,11 +206,53 @@ pub fn create_round() -> Round {
         magazine |= 1 << p;
     }
 
+    (bullets, magazine)
+}
+
+pub fn create_first_round(mut lives: u8, bullets: u8) -> Round {
+    if lives == 0 {
+        let mut rng = thread_rng();
+        lives = rng.gen_range(2..=6);
+    }
+    create_round(lives, lives, bullets)
+}
+
+fn create_round(player_lives: u8, dealer_lives: u8, bullets: u8) -> Round {
+    let (bullets, magazine) = create_magazine(bullets);
+
     Round {
         bullets,
         players_turn: true,
         magazine,
-        dealer_lives: lives,
-        player_lives: lives,
+        dealer_lives,
+        player_lives,
     }
+}
+
+fn run_stage(stage: u8) -> RoundResult {
+    let mut round = if stage == 0 { create_first_round(2, 3) } else { create_first_round(0, 0) };
+    let mut result = round.play(stage, 0);
+    let mut i = 0;
+    while result == Continue {
+        i += 1;
+        round.reload();
+        result = round.play(stage, i);
+    }
+    result
+}
+
+pub fn play() {
+    for i in 0..=2 {
+        println!("\n\x1b[35mStage {i}\x1b[0m\n");
+        if run_stage(i) == DealerWins {
+            break;
+        }
+    }
+}
+
+#[derive(PartialEq, Eq)]
+pub enum RoundResult {
+    DealerWins,
+    PlayerWins,
+    Continue,
 }
