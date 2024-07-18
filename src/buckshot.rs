@@ -245,8 +245,8 @@ fn run_stage(stage: u8) -> RoundResult {
 
 pub fn play() {
     for i in 0..=2 {
-        println!("\n\x1b[35mStage {i}\x1b[0m\n");
-        if run_stage(i) == DealerWins {
+        println!("\n\x1b[35mStage {}\x1b[0m\n", ["I", "II", "☠️"][i]);
+        if run_stage(i as u8) == DealerWins {
             break;
         }
     }
