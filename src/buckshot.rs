@@ -7,7 +7,7 @@ use std::time::Duration;
 use rand::{Rng, thread_rng};
 
 use crate::buckshot::RoundResult::{Continue, DealerWins, PlayerWins};
-use crate::typewriter::typewrite;
+use crate::typewriter::{peek, typewrite};
 
 // #[derive(Eq, PartialEq)]
 // enum Item {
@@ -30,6 +30,7 @@ use crate::typewriter::typewrite;
 //     // items: u64,
 // }
 
+
 #[derive(Debug)]
 pub struct Round {
     bullets: u8,
@@ -48,11 +49,11 @@ impl Round {
         self.bullets == 0 || self.player_lives == 0 || self.dealer_lives == 0
     }
 
-    fn live(&self) -> u8 {
+    pub(crate) fn live(&self) -> u8 {
         self.magazine.count_ones() as u8
     }
 
-    fn shoot(&mut self, suicide: bool) -> Result<bool, &'static str> {
+    pub(crate) fn shoot(&mut self, suicide: bool) -> Result<bool, &'static str> {
         if self.bullets == 0 {
             return Err("No bullets.");
         }
@@ -92,6 +93,10 @@ impl Round {
         }
 
         magazine
+    }
+
+    fn next(&self) -> bool {
+        self.magazine & 1 == 1
     }
 
     pub fn play(&mut self, stage: u8, round: u8) -> RoundResult {
@@ -145,7 +150,9 @@ impl Round {
                 print!("\x1b[F\x1b[2K\r");
                 r
             } else {
-                self.shoot(false).unwrap()
+                let next = self.next();
+                peek(next);
+                self.shoot(!next).unwrap()
             };
 
             if !careful && self.player_lives == 1 {
@@ -162,6 +169,7 @@ impl Round {
                 typewrite("\x1b[32mMISS\x1b[0m ".to_string());
             }
         }
+
         println!();
         let result = if self.player_lives == 0 {
             typewrite("\n\x1b[31mI WIN\x1b[0m\n".to_string());
