@@ -28,6 +28,12 @@ pub enum Item {
     MagnifyingGlass,
 }
 
+pub enum Action {
+    Murder,
+    Suicide,
+    Use
+}
+
 
 #[derive(Clone, Copy)]
 pub struct Items {

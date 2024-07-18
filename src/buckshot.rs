@@ -1,14 +1,15 @@
 use std::{fmt, io};
 use std::fmt::Formatter;
-use std::io::{BufRead, Write};
+use std::io::{BufRead, Lines, StdinLock, Write};
 use std::thread::sleep;
 use std::time::Duration;
 
 use rand::{Rng, thread_rng};
 
 use crate::dealer::{decide, think};
-use crate::types::{Item, Items, VolleyExport, VolleyResult};
-use crate::types::Item::Nothing;
+use crate::types::{Action, Item, Items, VolleyExport, VolleyResult};
+use crate::types::Action::{Murder, Suicide, Use};
+use crate::types::Item::{MagnifyingGlass, Nothing};
 use crate::types::Round::{Blank, Live, Unknown};
 use crate::types::VolleyResult::{Continue, DealerWins, PlayerWins};
 use crate::typewriter::{peek, typewrite};
@@ -150,6 +151,7 @@ impl Volley {
                 let live = self.peek();
                 let bullet = if live { Live } else { Blank };
                 peek(bullet);
+                print!("\r\x1b[2K  🔍 ");
                 true
             }
         }
@@ -228,19 +230,22 @@ impl Volley {
         while !self.done() {
             println!("{self}");
             let hit = if self.players_turn {
-                print!("\x1b[90m[d/y]\x1b[0m ");
-                io::stdout().flush().unwrap();
-                let line = lines.next().expect("couldn't read stdin").unwrap();
-                let r = match line.trim() {
-                    "d" => self.shoot(false).unwrap(),
-                    "y" => self.shoot(true).unwrap(),
-                    _ => {
-                        print!("\x1b[F\x1b[2K\x1b[F\x1b[5C");
+                let action = self.input(&mut lines);
+                print!("\x1b[F\x1b[2K\r");
+                match action {
+                    Murder => {
+                        self.shoot(false).unwrap()
+                    }
+                    Suicide => {
+                        self.shoot(true).unwrap()
+                    }
+                    Use => {
+                        let item = self.item_input(&mut lines);
+                        print!("\x1b[F\x1b[2K\r");
+                        self.use_player_item(item);
                         continue;
                     }
-                };
-                print!("\x1b[F\x1b[2K\r");
-                r
+                }
             } else {
                 // TODO dealer AI goes here
                 let mut export = self.export();
@@ -266,6 +271,7 @@ impl Volley {
                 typewrite("\x1b[32mMISS\x1b[0m ".to_string());
             }
         }
+        println!("{self}");
 
         println!();
         let result = if self.player_lives == 0 {
@@ -279,6 +285,47 @@ impl Volley {
         };
         // println!("\n{magazine} {self}\n\n");
         result
+    }
+
+    fn item_input(&mut self, lines: &mut Lines<StdinLock>) -> Item {
+        print!("\x1b[90m[m/b]\x1b[0m ");
+        io::stdout().flush().unwrap();
+        let line = lines.next().expect("couldn't read stdin").unwrap();
+        match line.trim() {
+            "m" => MagnifyingGlass,
+            "b" => Nothing,
+            _ => {
+                print!("\x1b[F\x1b[2K\rmagnifying glass/back ");
+                self.item_input(lines)
+            }
+        }
+    }
+    fn shot_input(&mut self, lines: &mut Lines<StdinLock>) -> bool {
+        print!("\x1b[90m[d/y]\x1b[0m ");
+        io::stdout().flush().unwrap();
+        let line = lines.next().expect("couldn't read stdin").unwrap();
+        match line.trim() {
+            "d" => false,
+            "y" => true,
+            _ => {
+                print!("\x1b[F\x1b[2K\rdealer/yourself ");
+                self.shot_input(lines)
+            }
+        }
+    }
+    fn input(&mut self, lines: &mut Lines<StdinLock>) -> Action {
+        print!("\x1b[90m[d/y/i]\x1b[0m ");
+        io::stdout().flush().unwrap();
+        let line = lines.next().expect("couldn't read stdin").unwrap();
+        match line.trim() {
+            "d" => Murder,
+            "y" => Suicide,
+            "i" => Use,
+            _ => {
+                print!("\x1b[F\x1b[2K\rdealer/yourself/item ");
+                self.input(lines)
+            }
+        }
     }
 
     pub fn reload(&mut self) {
@@ -344,7 +391,7 @@ pub fn create_first_round(mut lives: u8, bullets: u8) -> Volley {
         player_items: Items {
             beer: 0,
             cigarettes: 0,
-            magnifying_glass: 0,
+            magnifying_glass: 3,
         },
         dealer_items: Items {
             beer: 0,
