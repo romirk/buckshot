@@ -97,7 +97,7 @@ impl Round {
     pub fn play(&mut self, stage: u8, round: u8) -> RoundResult {
         let live = self.live();
         let blanks = self.bullets - live;
-        let magazine = print_magazine(self.bullets, self.magazine);
+        // let magazine = print_magazine(self.bullets, self.magazine);
 
         println!();
         match stage {
@@ -147,21 +147,23 @@ impl Round {
                 typewrite("\x1b[32mMISS\x1b[0m ".to_string());
             }
             if !careful && self.player_lives == 1 {
-                println!("\n\x1b[90mCareful now...\x1b[0m");
+                sleep(Duration::from_millis(500));
+                typewrite("\n\x1b[90mCareful now...\x1b[0m\n".to_string());
+                sleep(Duration::from_millis(900));
                 careful = true;
             }
         }
         println!();
         let result = if self.player_lives == 0 {
-            typewrite("\n\x1b[31mI WIN\x1b[0m ".to_string());
+            typewrite("\n\x1b[31mI WIN\x1b[0m\n".to_string());
             DealerWins
         } else if self.dealer_lives == 0 {
-            typewrite("\n\x1b[32mYOU WIN\x1b[0m ".to_string());
+            typewrite("\n\x1b[32mYOU WIN\x1b[0m\n".to_string());
             PlayerWins
         } else {
             Continue
         };
-        println!("\n{magazine} {self}\n\n");
+        // println!("\n{magazine} {self}\n\n");
         result
     }
 
@@ -176,11 +178,11 @@ impl fmt::Display for Round {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}{} ⚡ {}{}",
-            if self.players_turn { "*" } else { " " },
+            "{}{} \x1b[33m⚡ {}{}\x1b[0m",
+            if self.players_turn { "\x1b[36m" } else { "" },
             self.player_lives,
-            self.dealer_lives,
-            if !self.players_turn { "*" } else { " " })
+            if !self.players_turn { "\x1b[31m" } else { "\x1b[0m" },
+            self.dealer_lives)
     }
 }
 
