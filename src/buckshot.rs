@@ -133,25 +133,31 @@ impl Round {
                 print!("\x1b[90m[d/y]\x1b[0m ");
                 io::stdout().flush().unwrap();
                 let line = lines.next().expect("couldn't read stdin").unwrap();
-                match line.trim() {
+                let r = match line.trim() {
                     "d" => self.shoot(false).unwrap(),
                     "y" => self.shoot(true).unwrap(),
                     _ => continue
-                }
+                };
+                print!("\x1b[F\x1b[2K\r");
+                r
             } else {
                 self.shoot(false).unwrap()
             };
+
+            if !careful && self.player_lives == 1 {
+                sleep(Duration::from_millis(500));
+                typewrite("\n\x1b[90mCareful now...\x1b[0m".to_string());
+                sleep(Duration::from_millis(900));
+                print!("\x1b[2K\x1b[F");
+                careful = true;
+            }
+
             if hit {
                 typewrite("\x1b[31mHIT \x1b[0m ".to_string());
             } else {
                 typewrite("\x1b[32mMISS\x1b[0m ".to_string());
             }
-            if !careful && self.player_lives == 1 {
-                sleep(Duration::from_millis(500));
-                typewrite("\n\x1b[90mCareful now...\x1b[0m\n".to_string());
-                sleep(Duration::from_millis(900));
-                careful = true;
-            }
+
         }
         println!();
         let result = if self.player_lives == 0 {
