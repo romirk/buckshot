@@ -123,6 +123,7 @@ impl Round {
                 println!();
             }
         }
+        print!("     ");
 
         let mut lines = io::stdin().lock().lines();
 
@@ -136,7 +137,10 @@ impl Round {
                 let r = match line.trim() {
                     "d" => self.shoot(false).unwrap(),
                     "y" => self.shoot(true).unwrap(),
-                    _ => continue
+                    _ => {
+                        print!("\x1b[F\x1b[2K\x1b[F\x1b[5C");
+                        continue;
+                    }
                 };
                 print!("\x1b[F\x1b[2K\r");
                 r
@@ -157,7 +161,6 @@ impl Round {
             } else {
                 typewrite("\x1b[32mMISS\x1b[0m ".to_string());
             }
-
         }
         println!();
         let result = if self.player_lives == 0 {
